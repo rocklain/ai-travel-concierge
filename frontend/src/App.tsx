@@ -3,7 +3,7 @@ import './App.css';
 
 // TypeScriptの型定義: AIが返す旅行プランデータの型
 type ItineraryItem = {
-  day: string;
+  day: number;
   title: string;
   description: string;
 };
@@ -49,6 +49,7 @@ function App() {
 
     } catch (err) {
       setError('プランの生成に失敗しました');
+      console.error(err); 
     } finally {
       setIsLoading(false); // ローディング終了
     }
