@@ -1,0 +1,25 @@
+# .gitignore (プロジェクトルートに置く)
+
+# --- 秘密情報 ---
+# backendフォルダの中にある.envファイルを無視する
+backend/.env
+
+# --- Python / Flask バックエンド関連 ---
+# backendフォルダの中にある仮想環境フォルダを無視
+backend/venv/
+
+# Pythonのキャッシュ
+__pycache__/
+*.pyc
+
+# --- Node.js / React フロントエンド関連 ---
+# frontendフォルダの中にあるライブラリフォルダを無視
+frontend/node_modules/
+
+# フロントエンドのビルド成果物
+frontend/dist/
+frontend/build/
+
+# --- OS / エディタ関連 ---
+.DS_Store
+.vscode/
