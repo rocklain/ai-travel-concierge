@@ -110,3 +110,55 @@
   border-radius: 8px;
   object-fit: cover; /* 画像の比率を保ったまま表示 */
 }
+
+/* 楽天ホテル表示用CSS */
+.hotel-container {
+  margin-top: 2rem;
+}
+.hotel-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+.hotel-photo {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.hotel-info {
+  flex-grow: 1; /* 残りのスペースを全て使う */
+}
+.hotel-name {
+  font-weight: bold;
+}
+.hotel-rating {
+  font-size: 0.9em;
+  color: #555;
+}
+.hotel-booking {
+  text-align: right;
+}
+.hotel-price {
+  font-size: 1.2em;
+  font-weight: bold;
+  color: #e74c3c;
+}
+.booking-button {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #f39c12;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 0.9em;
+  transition: background-color 0.2s;
+}
+.booking-button:hover {
+  background-color: #e67e22;
+}

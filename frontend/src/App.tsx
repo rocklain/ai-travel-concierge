@@ -17,10 +17,22 @@ type ItineraryItem = {
   description: string;
   locations: LocationDetail[];
 };
+
+// ホテルの型
+type HotelSuggestion = {
+  name: string;
+  hotelImageUrl: string;
+  planListUrl: string;
+  reviewAverage: string;
+  charge: number | null;
+}
+
+// 旅行計画の型
 type TravelPlan = {
   title: string;
   summary: string;
   itinerary: ItineraryItem[];
+  hotel_suggestions: HotelSuggestion[];
 };
 
 
@@ -79,7 +91,6 @@ function App() {
       {isLoading && <p className="loading">AIが最高のプランを考えています…</p>}
       {error && <p className="error">{error}</p>}
 
-      {/* ★★★ ここから下の「結果表示」ブロックを修正 ★★★ */}
       {plan && (
         <div className="result-container">
           <h2 className="result-title">{plan.title}</h2>
@@ -87,19 +98,14 @@ function App() {
           <hr />
           <h3>旅程</h3>
 
-          {/* --- ここからが大元のループ --- */}
-          {/* plan.itineraryの各要素(item)に対して、以下の表示を繰り返す */}
           {Array.isArray(plan.itinerary) && plan.itinerary.map((item, index) => (
             <div key={`${item.day}-${index}`} className="itinerary-item">
               <h4>{item.day}日目: {item.title}</h4>
               <p dangerouslySetInnerHTML={{ __html: item.description.replace(/\n/g, '<br />') }} />
 
-              {/* --- ここからが写真と地図の表示ブロック --- */}
-              {/* 各itemにlocationsがあれば、写真と地図を表示する */}
               {Array.isArray(item.locations) && (
                 <div>
                   <div className="photo-gallery">
-                    {/* 各場所(loc)のphoto_urls配列をループ処理 */}
                     {item.locations.map(loc =>
                       loc.photo_urls.map(url =>
                         url && <img key={url} src={url} alt={loc.name} className="location-photo" />
@@ -109,14 +115,36 @@ function App() {
                   <MapComponent locations={item.locations} />
                 </div>
               )}
-              {/* --- ここまでが写真と地図の表示ブロック --- */}
-
             </div>
           ))}
-          {/* --- ここまでが大元のループ --- */}
-
+          
+          {Array.isArray(plan.hotel_suggestions) && plan.hotel_suggestions.length > 0 && (
+            <div className="hotel-container">
+              <hr />
+              <h3>🏨 おすすめの宿泊先</h3>
+              {plan.hotel_suggestions.map(hotel => (
+                <div key={hotel.name} className="hotel-card">
+                  <img src={hotel.hotelImageUrl} alt={hotel.name} className="hotel-photo" />
+                  <div className="hotel-info">
+                    <div className="hotel-name">{hotel.name}</div>
+                    <div className="hotel-rating">評価: {hotel.reviewAverage}</div>
+                  </div>
+                  <div className="hotel-booking">
+                    <div className="hotel-price">
+                      {hotel.charge ? `￥${hotel.charge.toLocaleString()}～/人` : '料金要確認'}
+                    </div>
+                    <a href={hotel.planListUrl} target="_blank" rel="noopener noreferrer" className="booking-button">
+                      予約サイトへ
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+
+export default App;
