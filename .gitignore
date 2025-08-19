@@ -23,3 +23,6 @@ frontend/build/
 # --- OS / エディタ関連 ---
 .DS_Store
 .vscode/
+
+# frontendフォルダの中にある.envファイルを無視する
+frontend/.env

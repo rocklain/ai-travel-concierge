@@ -96,3 +96,17 @@
 .error {
   color: #e74c3c;
 }
+
+.photo-gallery {
+  display: flex;
+  gap: 10px; /* 写真の間のスペース */
+  margin-top: 1rem;
+  flex-wrap: wrap; /* 横幅が足りなくなったら折り返す */
+}
+
+.location-photo {
+  width: calc(50% - 5px); /* 横に2枚並べるための幅計算 */
+  height: auto;
+  border-radius: 8px;
+  object-fit: cover; /* 画像の比率を保ったまま表示 */
+}

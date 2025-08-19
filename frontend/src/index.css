@@ -30,7 +30,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f4f7f9; /* 背景を少しだけグレーに */
+  /* 背景色と、アプリ全体の基本となる文字色を指定します */
+  background-color: #f4f7f9; 
+  color: #333; /* 基本の文字色を濃いグレーに設定 */
 }
 
 h1 {
