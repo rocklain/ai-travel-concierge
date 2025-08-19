@@ -26,36 +26,33 @@ gmaps = googlemaps.Client(key=os.getenv("GOOGLE_MAPS_API_KEY"))
 
 
 def search_rakuten_hotels(keyword):
-    RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/Travel/VacantHotelSearch/20170426"
+    RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/Travel/KeywordHotelSearch/20170426"
 
     params = {
         "applicationId": os.getenv("RAKUTEN_APP_ID"),
         "affiliateId": os.getenv("RAKUTEN_AFFILIATE_ID"),
         "format": "json",
-        "searchRadius": 3,  # 検索範囲（km）
-        "hits": 3,  # 取得件数
+        "hits": 3,
         "keyword": keyword
     }
 
     try:
         response = requests.get(RAKUTEN_ENDPOINT, params=params)
-        response.raise_for_status()  # エラーがあれば例外を発生
+        response.raise_for_status()
         data = response.json()
 
         hotels = []
         if "hotels" in data and data["hotels"]:
             for hotel_data in data["hotels"]:
                 hotel = hotel_data['hotel'][0]['hotelBasicInfo']
-                # 料金情報があるかチェック
-                charge_info = hotel_data['hotel'][1].get('hotelRatingInfo')
 
                 hotels.append({
                     "name": hotel.get('hotelName'),
                     "hotelImageUrl": hotel.get('hotelImageUrl'),
                     "planListUrl": hotel.get('planListUrl'),
                     "reviewAverage": hotel.get('reviewAverage'),
-                    # 料金、なければNone
-                    "charge": charge_info.get('salesPrice') if charge_info else None
+                    # キーワード検索APIは料金を返さないため、Noneに設定
+                    "charge": None
                 })
         return hotels
     except requests.exceptions.RequestException as e:
@@ -63,8 +60,6 @@ def search_rakuten_hotels(keyword):
         return []
 
 # APIエンドポイントを定義
-
-
 @app.route("/api/travel-plan", methods=["POST"])
 def create_travel_plan():
     # フロントエンドから送られてきたJSONデータを取得
@@ -176,7 +171,7 @@ def create_travel_plan():
         hotel_suggestions = []
         if search_keyword:
             hotel_suggestions = search_rakuten_hotels(search_keyword)
-            
+
         plan_data['hotel_suggestions'] = hotel_suggestions
 
         # --- ステップ4: フロントエンドに完成版プランを返す ---
