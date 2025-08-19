@@ -25,36 +25,65 @@ gmaps = googlemaps.Client(key=os.getenv("GOOGLE_MAPS_API_KEY"))
 # 楽天ホテル検索関数
 
 
-def search_rakuten_hotels(keyword):
-    RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/Travel/KeywordHotelSearch/20170426"
-
-    params = {
+def search_rakuten_hotels(keyword, checkin_date, checkout_date):
+    # --- ステップ1: キーワードでホテルを検索 ---
+    KEYWORD_SEARCH_ENDPOINT = "https://app.rakuten.co.jp/services/api/Travel/KeywordHotelSearch/20170426"
+    keyword_params = {
         "applicationId": os.getenv("RAKUTEN_APP_ID"),
         "affiliateId": os.getenv("RAKUTEN_AFFILIATE_ID"),
         "format": "json",
-        "hits": 3,
+        "hits": 3, # 候補となるホテルを3つ取得
         "keyword": keyword
     }
-
+    
     try:
-        response = requests.get(RAKUTEN_ENDPOINT, params=params)
+        response = requests.get(KEYWORD_SEARCH_ENDPOINT, params=keyword_params)
         response.raise_for_status()
-        data = response.json()
+        keyword_data = response.json()
+        
+        if not keyword_data.get("hotels"):
+            return [] # 候補ホテルが見つからなければ終了
 
-        hotels = []
-        if "hotels" in data and data["hotels"]:
-            for hotel_data in data["hotels"]:
-                hotel = hotel_data['hotel'][0]['hotelBasicInfo']
+        # --- ステップ2: 各ホテルの空室を検索 ---
+        VACANT_SEARCH_ENDPOINT = "https://app.rakuten.co.jp/services/api/Travel/VacantHotelSearch/20170426"
+        available_hotels = []
 
-                hotels.append({
-                    "name": hotel.get('hotelName'),
-                    "hotelImageUrl": hotel.get('hotelImageUrl'),
-                    "planListUrl": hotel.get('planListUrl'),
-                    "reviewAverage": hotel.get('reviewAverage'),
-                    # キーワード検索APIは料金を返さないため、Noneに設定
-                    "charge": None
-                })
-        return hotels
+        for hotel_data in keyword_data["hotels"]:
+            hotel_info = hotel_data['hotel'][0]['hotelBasicInfo']
+            hotel_no = hotel_info.get('hotelNo')
+
+            if not hotel_no:
+                continue
+
+            vacant_params = {
+                "applicationId": os.getenv("RAKUTEN_APP_ID"),
+                "affiliateId": os.getenv("RAKUTEN_AFFILIATE_ID"),
+                "format": "json",
+                "checkinDate": checkin_date,
+                "checkoutDate": checkout_date,
+                "hotelNo": hotel_no # ★★★ ホテルIDでピンポイント検索 ★★★
+            }
+            
+            vacant_response = requests.get(VACANT_SEARCH_ENDPOINT, params=vacant_params)
+            # 空室がない場合は404エラーが返ることがあるので、ここではエラーを無視
+            if vacant_response.status_code == 200:
+                vacant_data = vacant_response.json()
+                if vacant_data.get("hotels"):
+                    # 空室があったホテルの情報をリストに追加
+                    hotel_data = vacant_data["hotels"][0]
+                    hotel = hotel_data['hotel'][0]['hotelBasicInfo']
+                    charge_info = hotel_data['hotel'][1].get('hotelRatingInfo')
+                    
+                    available_hotels.append({
+                        "name": hotel.get('hotelName'),
+                        "hotelImageUrl": hotel.get('hotelImageUrl'),
+                        "planListUrl": hotel.get('planListUrl'),
+                        "reviewAverage": hotel.get('reviewAverage'),
+                        "charge": charge_info.get('salesPrice') if charge_info else None
+                    })
+        
+        return available_hotels
+
     except requests.exceptions.RequestException as e:
         print(f"楽天APIリクエストエラー: {e}")
         return []
@@ -62,25 +91,20 @@ def search_rakuten_hotels(keyword):
 # APIエンドポイントを定義
 @app.route("/api/travel-plan", methods=["POST"])
 def create_travel_plan():
-    # フロントエンドから送られてきたJSONデータを取得
     data = request.get_json()
-    # ユーザーからの旅行に関する要望テキスト
     user_prompt = data.get("prompt")
+    checkin_date = data.get("checkinDate")
+    checkout_date = data.get("checkoutDate")
 
-    # 入力内容がエラーの場合はエラーを返す
     if not user_prompt:
         return jsonify({"error": "リクエスト内容が空です。"}), 400
 
     try:
         # --- ステップ1: AIにプランの骨子を作成させる ---
-        # Gemini 2.5 Proモデルを使用
         model = genai.GenerativeModel('gemini-2.5-pro')
-
-        # Geminiへの指示（プロンプト）を作成
         prompt_for_ai = f"""
         あなたはプロの旅行プランナーです。
         ユーザーからの以下の要望に基づいて、魅力的で具体的な旅行プランを1つ提案してください。
-
         # 出力形式のルール
         - 必ずJSON形式のみを出力してください。
         - JSON以外の余計な文章（挨拶など）は一切含めないでください。
@@ -88,60 +112,36 @@ def create_travel_plan():
         - "title": 旅行プランのタイトル。必ず「」で主要な地名一つだけを囲んでください。(例: 「箱根」で過ごす癒しの温泉旅)
         - "summary": 2-3行の概要説明文
         - "itinerary": 旅程の配列。各要素は "day", "title", "description" をキーに持つオブジェクト。descriptionには「」で具体的な施設名や場所名を複数含めてください。
-
         # ユーザーの要望
         {user_prompt}
         """
-        # AIに指示を送りプランを作成させる
         response = model.generate_content(prompt_for_ai)
-
-        # AIからの返答テキストからJSON部分だけを正規表現で抽出
-        # re.search()は文字列の中からパターンに一致する最初の部分を見つけ出す命令
-        # '{'で始まり'}'で終わる、改行を含むあらゆる文字列(.*)にマッチさせる
         match = re.search(r'\{.*\}', response.text, re.DOTALL)
         if not match:
             raise ValueError("AIの応答からJSONデータを抽出できませんでした。")
-
         plan_data = json.loads(match.group(0))
 
-        # --- ステップ2: プラン内容を元にGoogle Mapsで情報補強 ---
-        # plan_data['itinerary']の各要素をループ処理
+        # --- ステップ2: Google Mapsで情報補強 ---
         for item in plan_data.get('itinerary', []):
-            # 旅程項目で登場した場所のリスト
             locations_in_item = []
-
-            # descriptionsから「○○」という場所名を探す
             found_names = re.findall(r'「(.*?)」', item['description'])
-
-            # 見つかった場所名でGoogle Mapで情報補強
+            
             for loc_name in found_names:
-                # Places APIで場所を検索
-                places_result = gmaps.places(
-                    query=loc_name,
-                    language='ja',
-                    # fields=['name', 'formatted_address', 'rating', 'geometry', 'photos']
-                )
-
-                # 検索結果があればdescriptionを具体的な場所に置き換える
+                places_result = gmaps.places(query=loc_name, language='ja')
+                
                 if places_result.get('status') == 'OK' and places_result.get('results'):
-                    place = places_result['results'][0]  # とりあえず最初の1件を取得
-
-                    # 写真URLを格納する空のリストを準備
+                    place = places_result['results'][0]
                     photo_urls = []
-                    # もし写真情報があればループ処理を開始する
                     for photo in place.get('photos', []):
                         photo_ref = photo['photo_reference']
                         photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={photo_ref}&key={os.getenv('GOOGLE_MAPS_API_KEY')}"
                         photo_urls.append(photo_url)
-                        # とりあえず2枚目まで取得する
                         if len(photo_urls) >= 2:
                             break
-
-                    # 経度・緯度を取得
+                    
                     lat = place['geometry']['location']['lat']
                     lng = place['geometry']['location']['lng']
-
-                    # 必要な情報を辞書としてまとめる
+                    
                     location_detail = {
                         'name': place.get('name'),
                         'address': place.get('formatted_address'),
@@ -151,40 +151,29 @@ def create_travel_plan():
                         'photo_urls': photo_urls
                     }
                     locations_in_item.append(location_detail)
-
-            # 旅程項目に補強した場所情報のリストを追加
             item['locations'] = locations_in_item
-
+        
         # --- ステップ3: 楽天APIでホテル情報を取得 ---
-        # 旅行プランのタイトルから地名らしきものを抽出する
-        search_keyword = None  # デフォルト値
-        # タイトルから「」で囲まれた地名を探す
+        # ★★★ 呼び出し方をキーワード検索に戻す ★★★
         match_location = re.search(r'「(.*?)」', plan_data.get('title', ''))
+        search_keyword = None
         if match_location:
-            # 「・」が含まれていたらその前の部分だけを使う
             search_keyword = match_location.group(1).split('・')[0]
-        # もしタイトルから地名が見つからなければ、最初の目的地を使う
-        if not search_keyword and plan_data.get('itinerary') and plan_data['itinerary'][0].get('locations'):
-            search_keyword = plan_data['itinerary'][0]['locations'][0]['name']
-
-        # 楽天APIでホテルを検索
+        
         hotel_suggestions = []
-        if search_keyword:
-            hotel_suggestions = search_rakuten_hotels(search_keyword)
-
+        if search_keyword and checkin_date and checkout_date:
+            hotel_suggestions = search_rakuten_hotels(search_keyword, checkin_date, checkout_date)
+        
         plan_data['hotel_suggestions'] = hotel_suggestions
 
         # --- ステップ4: フロントエンドに完成版プランを返す ---
         return jsonify(plan_data)
 
     except Exception as e:
-        # エラーハンドリング
         print(f"エラーが発生しました: {e}")
         return jsonify({"error": "プランの生成に失敗しました"}), 500
 
 # 動作確認用のページ
-
-
 @app.route('/')
 def index():
     return "旅のAIコンシェルジュ　APIサーバー"

@@ -38,12 +38,19 @@ type TravelPlan = {
 
 function App() {
   const [prompt, setPrompt] = useState('');
+  const [checkinDate, setCheckinDate] = useState('')
+  const [checkoutDate, setCheckoutDate] = useState('')
+
   const [plan, setPlan] = useState<TravelPlan | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!checkinDate || !checkoutDate) {
+      setError('チェックイン日とチェックアウト日を入力してください。');
+      return;
+    }
     setIsLoading(true);
     setError('');
     setPlan(null);
@@ -52,7 +59,11 @@ function App() {
       const response = await fetch('http://127.0.0.1:5001/api/travel-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          checkinDate,
+          checkoutDate
+        }),
       });
 
       if (!response.ok) {
@@ -78,6 +89,18 @@ function App() {
       </div>
 
       <form className="prompt-form" onSubmit={handleSubmit}>
+        {/* 日付入力フォーム */}
+        <div className="date-picker-wrapper">
+          <div className="date-input-group">
+            <label htmlFor="checkin">チェックイン</label>
+            <input id="checkin" type="date" value={checkinDate} onChange={e => setCheckinDate(e.target.value)} />
+          </div>
+          <div className="date-input-group">
+            <label htmlFor="checkout">チェックアウト</label>
+            <input id="checkout" type="date" value={checkoutDate} onChange={e => setCheckoutDate(e.target.value)} />
+          </div>
+        </div>
+
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -117,7 +140,7 @@ function App() {
               )}
             </div>
           ))}
-          
+
           {Array.isArray(plan.hotel_suggestions) && plan.hotel_suggestions.length > 0 && (
             <div className="hotel-container">
               <hr />
